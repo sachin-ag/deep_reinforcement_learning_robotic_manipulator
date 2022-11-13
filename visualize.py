@@ -1,5 +1,5 @@
 from env import ArmEnv
-from rl import rl
+from rl import DDPG
 import numpy as np
 import pyglet
 
@@ -94,14 +94,21 @@ class Viewer(pyglet.window.Window):
         self.goal_info['x'] = x
         self.goal_info['y'] = y
 
+env = ArmEnv()
+
+s_dim = env.state_dim
+a_dim = env.action_dim
+a_bound = env.action_bound
+
+# set RL method (continuous)
+rl = DDPG(a_dim, s_dim, a_bound)
+
 viewer = None
 
 def render(env):
     if viewer is None:
         viewer = Viewer(env.arm_info, env.goal)
     viewer.render()
-
-env = ArmEnv()
 
 def eval():
     rl.restore()
