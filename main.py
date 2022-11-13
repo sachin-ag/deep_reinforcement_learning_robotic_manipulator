@@ -6,9 +6,9 @@ Feature & reward engineering.
 from env import ArmEnv
 from rl import DDPG
 
-MAX_EPISODES = 1000
+MAX_EPISODES = 500
 MAX_EP_STEPS = 200
-ON_TRAIN = False
+ON_TRAIN = True
 
 # set env
 env = ArmEnv()
@@ -60,7 +60,7 @@ def eval():
 
 if ON_TRAIN:
     train()
-else:
+# else:
     eval()
 
 
