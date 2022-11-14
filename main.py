@@ -46,7 +46,21 @@ def train():
                 break
     rl.save()
 
+
+def eval():
+    rl.restore()
+    env.render()
+    env.viewer.set_vsync(True)
+    s = env.reset()
+    while True:
+        env.render()
+        a = rl.choose_action(s)
+        s, r, done = env.step(a)
+
+
 if ON_TRAIN:
     train()
+# else:
+    eval()
 
 
