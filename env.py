@@ -7,12 +7,12 @@ class ArmEnv(object):
     dt = .1    # refresh rate
     action_bound = [-1, 1]
     goal = {'x': 100., 'y': 100., 'l': 40}
-    state_dim = 9 # TO DO
+    state_dim = 13
     action_dim = 3
 
     def __init__(self):
         self.arm_info = np.zeros(
-            2, dtype=[('l', np.float32), ('r', np.float32)])
+            3, dtype=[('l', np.float32), ('r', np.float32)])
         self.arm_info['l'] = 100        # 2 arms length
         self.arm_info['r'] = np.pi/6    # 2 angles information
         self.on_goal = 0
@@ -25,7 +25,7 @@ class ArmEnv(object):
 
         (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
         (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
-        a1xy = np.array([200., 200.])    # a1 start (x0, y0)
+        a1xy = np.array([200., 0.])    # a1 start (x0, y0)
         a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + a1xy  # a1 end and a2 start (x1, y1)
         a2xy_ = np.array([np.cos(a1r + a2r), np.sin(a1r + a2r)]) * a2l + a1xy_  # a2 end (x2, y2) and a3 start
         finger = np.array([np.cos(a1r+a2r+a3r), np.sin(a1r+a2r+a3r)])*a3l + a2xy_ # a3 end
@@ -56,11 +56,11 @@ class ArmEnv(object):
     def reset(self):
         self.goal['x'] = np.random.rand()*400.
         self.goal['y'] = np.random.rand()*400.
-        self.arm_info['r'] = 2 * np.pi * np.random.rand(2)
+        self.arm_info['r'] = 2 * np.pi * np.random.rand(3)
         self.on_goal = 0
         (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
         (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
-        a1xy = np.array([200., 200.])    # a1 start (x0, y0)
+        a1xy = np.array([200., 0.])    # a1 start (x0, y0)
         a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + a1xy  # a1 end and a2 start (x1, y1)
         a2xy_ = np.array([np.cos(a1r + a2r), np.sin(a1r + a2r)]) * a2l + a1xy_  # a2 end (x2, y2) and a3 start
         finger = np.array([np.cos(a1r+a2r+a3r), np.sin(a1r+a2r+a3r)])*a3l + a2xy_ # a3 end
@@ -72,8 +72,13 @@ class ArmEnv(object):
         dist3 = [(self.goal['x'] - finger[0]) / 400,
                  (self.goal['y'] - finger[1]) / 400]
         # state
-        s = np.concatenate((a1xy_/200, finger/200, dist1 +
-                           dist2, [1. if self.on_goal else 0.]))
+        s = np.concatenate((a1xy_/200, a2xy_/200, finger/200, dist1 +
+                           dist2 + dist3, [1. if self.on_goal else 0.]))
+        # print(a1xy_)
+        # print(a2xy_)
+        # print(finger)
+        # print(dist1+dist2+dist3)
+        # print(s)
         return s
 
     def render(self):
@@ -95,7 +100,7 @@ class Viewer(pyglet.window.Window):
         pyglet.gl.glClearColor(1, 1, 1, 1)
         self.arm_info = arm_info
         self.goal_info = goal
-        self.center_coord = np.array([200, 200])
+        self.center_coord = np.array([200, 0])
 
         self.batch = pyglet.graphics.Batch()    # display whole batch at once
         self.goal = self.batch.add(4, pyglet.gl.GL_QUADS, None,    # 4 corners
@@ -148,16 +153,16 @@ class Viewer(pyglet.window.Window):
             self.goal_info['x'] - self.goal_info['l']/2, self.goal_info['y'] + self.goal_info['l']/2)
 
         # update arm
-        (a1l, a2l) = self.arm_info['l']     # radius, arm length
-        (a1r, a2r) = self.arm_info['r']     # radian, angle
+        (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
+        (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
         a1xy = self.center_coord            # a1 start (x0, y0)
-        a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + \
-            a1xy   # a1 end and a2 start (x1, y1)
-        a2xy_ = np.array([np.cos(a1r+a2r), np.sin(a1r+a2r)]
-                         ) * a2l + a1xy_  # a2 end (x2, y2)
+        a1xy_ = np.array([np.cos(a1r), np.sin(a1r)])*a1l + a1xy   # a1 end and a2 start (x1, y1)
+        a2xy_ = np.array([np.cos(a1r+a2r), np.sin(a1r+a2r)])*a2l + a1xy_  # a2 end (x2, y2)
+        a3xy_ = np.array([np.cos(a1r+a2r+a3r), np.sin(a1r+a2r+a3r)])*a3l + a2xy_ # a3 end
 
-        a1tr, a2tr = np.pi / 2 - \
-            self.arm_info['r'][0], np.pi / 2 - self.arm_info['r'].sum()
+        a1tr, a2tr, a3tr = np.pi / 2 - self.arm_info['r'][0], \
+                           np.pi / 2 - self.arm_info['r'][0] + self.arm_info['r'][1], \
+                           np.pi / 2 - self.arm_info['r'].sum()
         xy01 = a1xy + np.array([-np.cos(a1tr), np.sin(a1tr)]) * self.bar_thc
         xy02 = a1xy + np.array([np.cos(a1tr), -np.sin(a1tr)]) * self.bar_thc
         xy11 = a1xy_ + np.array([np.cos(a1tr), -np.sin(a1tr)]) * self.bar_thc
@@ -168,8 +173,14 @@ class Viewer(pyglet.window.Window):
         xy21 = a2xy_ + np.array([-np.cos(a2tr), np.sin(a2tr)]) * self.bar_thc
         xy22 = a2xy_ + np.array([np.cos(a2tr), -np.sin(a2tr)]) * self.bar_thc
 
+        xy21_ = a2xy_ + np.array([-np.cos(a3tr), np.sin(a3tr)]) * self.bar_thc
+        xy22_ = a2xy_ + np.array([np.cos(a3tr), -np.sin(a3tr)]) * self.bar_thc
+        xy31 = a3xy_ + np.array([np.cos(a3tr), -np.sin(a3tr)]) * self.bar_thc
+        xy32 = a3xy_ + np.array([-np.cos(a3tr), np.sin(a3tr)]) * self.bar_thc
+
         self.arm1.vertices = np.concatenate((xy01, xy02, xy11, xy12))
         self.arm2.vertices = np.concatenate((xy11_, xy12_, xy21, xy22))
+        self.arm3.vertices = np.concatenate((xy21_, xy22_, xy31, xy32))
 
     # convert the mouse coordinate to goal's coordinate
     def on_mouse_motion(self, x, y, dx, dy):

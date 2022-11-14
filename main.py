@@ -6,9 +6,8 @@ Feature & reward engineering.
 from env import ArmEnv
 from rl import DDPG
 
-MAX_EPISODES = 500
+MAX_EPISODES = 1000
 MAX_EP_STEPS = 200
-ON_TRAIN = True
 
 # set env
 env = ArmEnv()
@@ -57,10 +56,9 @@ def eval():
         a = rl.choose_action(s)
         s, r, done = env.step(a)
 
-
+ON_TRAIN = "1" == input("enter 1 for train, 0 for simulate: ")
 if ON_TRAIN:
     train()
-# else:
     eval()
-
-
+else:
+    eval()
