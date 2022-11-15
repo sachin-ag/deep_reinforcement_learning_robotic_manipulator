@@ -82,8 +82,9 @@ class DDPG(object):
     def _build_a(self, s, scope, trainable):
         with tf.variable_scope(scope):
             net = tf.layers.dense(s, 300, activation=tf.nn.relu, name='l1', trainable=trainable)
-            a = tf.layers.dense(net, self.a_dim, activation=tf.nn.tanh, name='a', trainable=trainable)
-            return tf.multiply(a, self.a_bound, name='scaled_a')
+            a = tf.layers.dense(net, 50, activation=tf.nn.relu, name='a', trainable=trainable)
+            b = tf.layers.dense(a, self.a_dim, activation=tf.nn.tanh, name='b', trainable=trainable)
+            return tf.multiply(b, self.a_bound, name='scaled_a')
 
     def _build_c(self, s, a, scope, trainable):
         with tf.variable_scope(scope):
@@ -92,7 +93,8 @@ class DDPG(object):
             w1_a = tf.get_variable('w1_a', [self.a_dim, n_l1], trainable=trainable)
             b1 = tf.get_variable('b1', [1, n_l1], trainable=trainable)
             net = tf.nn.relu(tf.matmul(s, w1_s) + tf.matmul(a, w1_a) + b1)
-            return tf.layers.dense(net, 1, trainable=trainable)  # Q(s,a)
+            c = tf.layers.dense(net, 10, activation=tf.nn.tanh, name='c', trainable=trainable)
+            return tf.layers.dense(c, 1, trainable=trainable)  # Q(s,a)
 
     def save(self):
         saver = tf.train.Saver()

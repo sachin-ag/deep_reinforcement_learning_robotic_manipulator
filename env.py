@@ -25,20 +25,24 @@ class ArmEnv(object):
 
         (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
         (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
-        a1xy = np.array([200., 0.])    # a1 start (x0, y0)
+        a1xy = np.array([300., 0.])    # a1 start (x0, y0)
         a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + a1xy  # a1 end and a2 start (x1, y1)
         a2xy_ = np.array([np.cos(a1r + a2r), np.sin(a1r + a2r)]) * a2l + a1xy_  # a2 end (x2, y2) and a3 start
         finger = np.array([np.cos(a1r+a2r+a3r), np.sin(a1r+a2r+a3r)])*a3l + a2xy_ # a3 end
         # normalize features
-        dist1 = [(self.goal['x'] - a1xy_[0]) / 400,
-                 (self.goal['y'] - a1xy_[1]) / 400]
-        dist2 = [(self.goal['x'] - a2xy_[0]) / 400,
-                 (self.goal['y'] - a2xy_[1]) / 400]
-        dist3 = [(self.goal['x'] - finger[0]) / 400,
-                 (self.goal['y'] - finger[1]) / 400]
+        dist1 = [(self.goal['x'] - a1xy_[0]) / 600,
+                 (self.goal['y'] - a1xy_[1]) / 600]
+        dist2 = [(self.goal['x'] - a2xy_[0]) / 600,
+                 (self.goal['y'] - a2xy_[1]) / 600]
+        dist3 = [(self.goal['x'] - finger[0]) / 600,
+                 (self.goal['y'] - finger[1]) / 600]
         r = -np.sqrt(dist3[0]**2+dist3[1]**2)
 
-        # done and reward
+        if a1xy_[1]<0 or a2xy_[1]<0 or finger[1]<0:
+            if a1xy_[1]<0: r -= .1
+            if a2xy_[1]<0: r -= .1
+            if finger[1]<0: r -= .1
+
         if self.goal['x'] - self.goal['l']/2 < finger[0] < self.goal['x'] + self.goal['l']/2:
             if self.goal['y'] - self.goal['l']/2 < finger[1] < self.goal['y'] + self.goal['l']/2:
                 r += 1.
@@ -51,34 +55,30 @@ class ArmEnv(object):
         # state
         s = np.concatenate((a1xy_/200, a2xy_/200, finger/200, dist1 +
                            dist2 + dist3, [1. if self.on_goal else 0.]))
+
         return s, r, done
 
     def reset(self):
-        self.goal['x'] = np.random.rand()*400.
-        self.goal['y'] = np.random.rand()*400.
+        self.goal['x'] = np.random.uniform(-300.,300.)
+        self.goal['y'] = np.random.rand()*300.
         self.arm_info['r'] = 2 * np.pi * np.random.rand(3)
         self.on_goal = 0
         (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
         (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
-        a1xy = np.array([200., 0.])    # a1 start (x0, y0)
+        a1xy = np.array([300., 0.])    # a1 start (x0, y0)
         a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + a1xy  # a1 end and a2 start (x1, y1)
         a2xy_ = np.array([np.cos(a1r + a2r), np.sin(a1r + a2r)]) * a2l + a1xy_  # a2 end (x2, y2) and a3 start
         finger = np.array([np.cos(a1r+a2r+a3r), np.sin(a1r+a2r+a3r)])*a3l + a2xy_ # a3 end
         # normalize features
-        dist1 = [(self.goal['x'] - a1xy_[0]) / 400,
-                 (self.goal['y'] - a1xy_[1]) / 400]
-        dist2 = [(self.goal['x'] - a2xy_[0]) / 400,
-                 (self.goal['y'] - a2xy_[1]) / 400]
-        dist3 = [(self.goal['x'] - finger[0]) / 400,
-                 (self.goal['y'] - finger[1]) / 400]
+        dist1 = [(self.goal['x'] - a1xy_[0]) / 600,
+                 (self.goal['y'] - a1xy_[1]) / 600]
+        dist2 = [(self.goal['x'] - a2xy_[0]) / 600,
+                 (self.goal['y'] - a2xy_[1]) / 600]
+        dist3 = [(self.goal['x'] - finger[0]) / 600,
+                 (self.goal['y'] - finger[1]) / 600]
         # state
         s = np.concatenate((a1xy_/200, a2xy_/200, finger/200, dist1 +
                            dist2 + dist3, [1. if self.on_goal else 0.]))
-        # print(a1xy_)
-        # print(a2xy_)
-        # print(finger)
-        # print(dist1+dist2+dist3)
-        # print(s)
         return s
 
     def render(self):
@@ -95,12 +95,12 @@ class Viewer(pyglet.window.Window):
 
     def __init__(self, arm_info, goal):
         # vsync=False to not use the monitor FPS, we can speed up training
-        super(Viewer, self).__init__(width=400, height=400,
+        super(Viewer, self).__init__(width=600, height=300,
                                      resizable=False, caption='Arm', vsync=False)
         pyglet.gl.glClearColor(1, 1, 1, 1)
         self.arm_info = arm_info
         self.goal_info = goal
-        self.center_coord = np.array([200, 0])
+        self.center_coord = np.array([300, 0])
 
         self.batch = pyglet.graphics.Batch()    # display whole batch at once
         self.goal = self.batch.add(4, pyglet.gl.GL_QUADS, None,    # 4 corners

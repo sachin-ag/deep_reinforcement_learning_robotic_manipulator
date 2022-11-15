@@ -6,7 +6,7 @@ Feature & reward engineering.
 from env import ArmEnv
 from rl import DDPG
 
-MAX_EPISODES = 1000
+MAX_EPISODES = 10000
 MAX_EP_STEPS = 200
 
 # set env
@@ -21,6 +21,7 @@ rl = DDPG(a_dim, s_dim, a_bound)
 steps = []
 def train():
     # start training
+    acc = 0
     for i in range(MAX_EPISODES):
         s = env.reset()
         ep_r = 0.
@@ -39,8 +40,13 @@ def train():
                 rl.learn()
 
             s = s_
+
             if done or j == MAX_EP_STEPS-1:
-                print('Ep: %i | %s | ep_r: %.1f | step: %i' % (i, '---' if not done else 'done', ep_r, j), a)
+                if done:
+                    acc = 0.1 + 0.9*acc
+                else:
+                    acc = 0.9*acc
+                print('Ep: %i | %s | ep_r: %.1f | step: %i | acc:' % (i, '---' if not done else 'done', ep_r, j), acc)
 			    # print(a)
                 break
     rl.save()
@@ -59,6 +65,5 @@ def eval():
 ON_TRAIN = "1" == input("enter 1 for train, 0 for simulate: ")
 if ON_TRAIN:
     train()
-    eval()
 else:
     eval()
