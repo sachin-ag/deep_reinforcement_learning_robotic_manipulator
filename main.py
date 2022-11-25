@@ -5,8 +5,9 @@ Feature & reward engineering.
 """
 from env import ArmEnv
 from rl import DDPG
+import time
 
-MAX_EPISODES = 1000
+MAX_EPISODES = 5000
 MAX_EP_STEPS = 200
 
 # set env
@@ -21,7 +22,8 @@ rl = DDPG(a_dim, s_dim, a_bound)
 steps = []
 def train():
     # start training
-    f = open("./accuracy.txt", 'w')
+    f1 = open("./accuracy.txt", 'w')
+    f2 = open("./rewards.txt", 'w')
     acc = 0
     for i in range(MAX_EPISODES):
         s = env.reset()
@@ -47,42 +49,70 @@ def train():
                     acc = 0.01 + 0.99*acc
                 else:
                     acc = 0.99*acc
-                f.write("%f\n" % acc)
-                print('Ep: %i | %s | ep_r: %.1f | step: %i | acc:' % (i, '---' if not done else 'done', ep_r, j), acc)
+                f1.write("%f\n" % acc)
+                f2.write("%f\n" % ep_r)
+                print('Ep: %i | %s | ep_r: %.1f | step: %i | acc:' % (i, '----' if not done else 'done', ep_r, j), acc)
 			    # print(a)
                 break
-    f.close()
+    f1.close()
+    f2.close()
     rl.save()
 
 
-def eval1():
+def eval(mouse = True, filename = None):
     rl.restore()
     env.render()
     env.viewer.set_vsync(True)
+    if filename != None: 
+        env.viewer.draw_circles(filename)
+        f = open(filename, 'r')
     s = env.reset()
+    episodes = 0
+    completed = 0
     while True:
-        env.render()
-        a = rl.choose_action(s)
-        s, r, done = env.step(a)
+        steps = 0
+        done = False
+        episodes += 1
+        r = 0
 
-def eval2():
-    rl.restore()
-    env.render()
-    env.viewer.set_vsync(True)
-    s = env.reset()
-    print("Note: 0<x<600 & 0<y<300.")
-    while True:
-        inp = input("input x and y coordinates separated by space: ")
+        if not mouse:
+            env.viewer.mouse = False
+            if filename == None:
+                inp = input()
+            else:
+                inp = f.readline()
+                if inp == "":
+                    f.close()
+                    print("Accuracy during trajectory tracking is", completed/episodes)
+                    break
+            # print(inp)
+            inp = inp.split()
+            env.goal['x'] = float(inp[0])
+            env.goal['y'] = float(inp[1])
+            env.viewer.goal_info = env.goal
         
+        while not done and steps < 20:
+            steps += 1
+            env.render()
+            time.sleep(0.01)
+            a = rl.choose_action(s)
+            s, r, done = env.step(a)
+        
+        if r > 0:
+            completed += 1
 
 
-print("Options:\n1. Train\n2. Simulate using cursor\n3. Simulate using given points")
-inp = input("enter 1, 2 or 3: ")
+print("Options:\n1. Train\n2. Simulate using cursor\n3. Simulate using given points\n4. Simulate using a file with coordinates.")
+inp = input("enter 1, 2, 3 or 4: ")
 if inp == "1":
     train()
 elif inp == "2":
-    eval1()
+    eval()
 elif inp == "3":
-    eval2()
+    print("Enter x and y coordinates separated by space and press enter.")
+    eval(False)
+elif inp == "4":
+    filename = input("enter filename: ")
+    eval(False, filename)
 else:
     print("Invalid option.\n")

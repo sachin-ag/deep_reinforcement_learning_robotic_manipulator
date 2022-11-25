@@ -1,5 +1,6 @@
 import numpy as np
 import pyglet
+from pyglet import shapes
 
 
 class ArmEnv(object):
@@ -26,8 +27,7 @@ class ArmEnv(object):
         (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
         (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
         a1xy = np.array([300., 0.])    # a1 start (x0, y0)
-        a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + \
-            a1xy  # a1 end and a2 start (x1, y1)
+        a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + a1xy  # a1 end and a2 start (x1, y1)
         a2xy_ = np.array([np.cos(a1r + a2r), np.sin(a1r + a2r)]) * \
             a2l + a1xy_  # a2 end (x2, y2) and a3 start
         finger = np.array(
@@ -55,6 +55,7 @@ class ArmEnv(object):
                     r += 1.
                     self.on_goal += 1
                     if self.on_goal > 50:
+                        # r += (200 - self.on_goal)
                         done = True
             else:
                 self.on_goal = 0
@@ -115,6 +116,7 @@ class Viewer(pyglet.window.Window):
         self.arm_info = arm_info
         self.goal_info = goal
         self.center_coord = np.array([300, 0])
+        self.mouse = True
 
         self.batch = pyglet.graphics.Batch()    # display whole batch at once
         self.goal = self.batch.add(4, pyglet.gl.GL_QUADS, None,    # 4 corners
@@ -124,6 +126,7 @@ class Viewer(pyglet.window.Window):
                                             goal['x'] + goal['l'] / \
                                             2, goal['y'] + goal['l'] / 2,
                                             goal['x'] + goal['l'] / 2, goal['y'] - goal['l'] / 2]),
+                                #    ('c3B', (255, 255, 255) * 4))    # color
                                    ('c3B', (86, 109, 249) * 4))    # color
         self.arm1 = self.batch.add(4, pyglet.gl.GL_QUADS, None,
                                    ('v2f', [250, 250,                # location
@@ -201,9 +204,21 @@ class Viewer(pyglet.window.Window):
 
     # convert the mouse coordinate to goal's coordinate
     def on_mouse_motion(self, x, y, dx, dy):
-        self.goal_info['x'] = x
-        self.goal_info['y'] = y
+        if self.mouse:
+            self.goal_info['x'] = x
+            self.goal_info['y'] = y
         # print(self.goal_info)
+
+    def draw_circles(self, filename):
+        f = open(filename, 'r')
+        inp = f.readline()
+        self.circles = []
+        while inp != "":
+            inp = inp.split()
+            circle = shapes.Circle(x=float(inp[0]), y=float(inp[1]), radius=5, color=(0, 0, 0), batch=self.batch)
+            self.circles.append(circle)
+            inp = f.readline()
+        f.close()
 
 
 if __name__ == '__main__':
