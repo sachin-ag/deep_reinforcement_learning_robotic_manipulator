@@ -1,228 +1,137 @@
+import time
+import math
+import random
+
 import numpy as np
-import pyglet
-from pyglet import shapes
+import pybullet as p
+import pybullet_data
+
+from utilities import Models, Camera
+from collections import namedtuple
+from attrdict import AttrDict
+from tqdm import tqdm
 
 
-class ArmEnv(object):
-    viewer = None
-    dt = .1    # refresh rate
-    action_bound = [-1, 1]
-    goal = {'x': 100., 'y': 100., 'l': 40}
-    state_dim = 13
-    action_dim = 3
+class FailToReachTargetError(RuntimeError):
+    pass
 
-    def __init__(self):
-        self.arm_info = np.zeros(
-            3, dtype=[('l', np.float32), ('r', np.float32)])
-        self.arm_info['l'] = 100        # 2 arms length
-        self.arm_info['r'] = np.pi/6    # 2 angles information
-        self.on_goal = 0
 
-    def step(self, action):
-        done = False
-        action = np.clip(action, *self.action_bound)
-        self.arm_info['r'] += action * self.dt
-        self.arm_info['r'] %= np.pi * 2    # normalize
+class ClutteredPushGrasp:
 
-        (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
-        (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
-        a1xy = np.array([300., 0.])    # a1 start (x0, y0)
-        a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + a1xy  # a1 end and a2 start (x1, y1)
-        a2xy_ = np.array([np.cos(a1r + a2r), np.sin(a1r + a2r)]) * \
-            a2l + a1xy_  # a2 end (x2, y2) and a3 start
-        finger = np.array(
-            [np.cos(a1r+a2r+a3r), np.sin(a1r+a2r+a3r)])*a3l + a2xy_  # a3 end
-        # normalize features
-        dist1 = [(self.goal['x'] - a1xy_[0]) / 600,
-                 (self.goal['y'] - a1xy_[1]) / 600]
-        dist2 = [(self.goal['x'] - a2xy_[0]) / 600,
-                 (self.goal['y'] - a2xy_[1]) / 600]
-        dist3 = [(self.goal['x'] - finger[0]) / 600,
-                 (self.goal['y'] - finger[1]) / 600]
-        r = -np.sqrt(dist3[0]**2+dist3[1]**2)
+    SIMULATION_STEP_DELAY = 1 / 240.
 
-        if a1xy_[1] < 0 or a2xy_[1] < 0 or finger[1] < 0:
-            if a1xy_[1] < 0:
-                r -= 1
-            if a2xy_[1] < 0:
-                r -= 1
-            if finger[1] < 0:
-                r -= 1
-            self.on_goal = 0
+    def __init__(self, robot, models: Models, camera=None, vis=False) -> None:
+        self.robot = robot
+        self.vis = vis
+        if self.vis:
+            self.p_bar = tqdm(ncols=0, disable=False)
+        self.camera = camera
+
+        # define environment
+        self.physicsClient = p.connect(p.GUI if self.vis else p.DIRECT)
+        p.setAdditionalSearchPath(pybullet_data.getDataPath())
+        p.setGravity(0, 0, -10)
+        self.planeID = p.loadURDF("plane.urdf")
+
+        self.robot.load()
+        self.robot.step_simulation = self.step_simulation
+
+        # custom sliders to tune parameters (name of the parameter,range,initial value)
+        self.xin = p.addUserDebugParameter("x", -0.224, 0.224, 0)
+        self.yin = p.addUserDebugParameter("y", -0.224, 0.224, 0)
+        self.zin = p.addUserDebugParameter("z", 0, 1., 0.5)
+        self.rollId = p.addUserDebugParameter("roll", -3.14, 3.14, 0)
+        self.pitchId = p.addUserDebugParameter("pitch", -3.14, 3.14, np.pi/2)
+        self.yawId = p.addUserDebugParameter("yaw", -np.pi/2, np.pi/2, np.pi/2)
+        self.gripper_opening_length_control = p.addUserDebugParameter("gripper_opening_length", 0, 0.085, 0.04)
+
+        self.boxID = p.loadURDF("./urdf/skew-box-button.urdf",
+                                [0.0, 0.0, 0.0],
+                                # p.getQuaternionFromEuler([0, 1.5706453, 0]),
+                                p.getQuaternionFromEuler([0, 0, 0]),
+                                useFixedBase=True,
+                                flags=p.URDF_MERGE_FIXED_LINKS | p.URDF_USE_SELF_COLLISION)
+
+        # For calculating the reward
+        self.box_opened = False
+        self.btn_pressed = False
+        self.box_closed = False
+
+    def step_simulation(self):
+        """
+        Hook p.stepSimulation()
+        """
+        p.stepSimulation()
+        if self.vis:
+            time.sleep(self.SIMULATION_STEP_DELAY)
+            self.p_bar.update(1)
+
+    def read_debug_parameter(self):
+        # read the value of task parameter
+        x = p.readUserDebugParameter(self.xin)
+        y = p.readUserDebugParameter(self.yin)
+        z = p.readUserDebugParameter(self.zin)
+        roll = p.readUserDebugParameter(self.rollId)
+        pitch = p.readUserDebugParameter(self.pitchId)
+        yaw = p.readUserDebugParameter(self.yawId)
+        gripper_opening_length = p.readUserDebugParameter(self.gripper_opening_length_control)
+
+        return x, y, z, roll, pitch, yaw, gripper_opening_length
+
+    def step(self, action, control_method='joint'):
+        """
+        action: (x, y, z, roll, pitch, yaw, gripper_opening_length) for End Effector Position Control
+                (a1, a2, a3, a4, a5, a6, a7, gripper_opening_length) for Joint Position Control
+        control_method:  'end' for end effector position control
+                         'joint' for joint position control
+        """
+        assert control_method in ('joint', 'end')
+        self.robot.move_ee(action[:-1], control_method)
+        self.robot.move_gripper(action[-1])
+        for _ in range(120):  # Wait for a few steps
+            self.step_simulation()
+
+        reward = self.update_reward()
+        done = True if reward == 1 else False
+        info = dict(box_opened=self.box_opened, btn_pressed=self.btn_pressed, box_closed=self.box_closed)
+        return self.get_observation(), reward, done, info
+
+    def update_reward(self):
+        reward = 0
+        if not self.box_opened:
+            if p.getJointState(self.boxID, 1)[0] > 1.9:
+                self.box_opened = True
+                print('Box opened!')
+        elif not self.btn_pressed:
+            if p.getJointState(self.boxID, 0)[0] < - 0.02:
+                self.btn_pressed = True
+                print('Btn pressed!')
         else:
-            if self.goal['x'] - self.goal['l']/2 < finger[0] < self.goal['x'] + self.goal['l']/2:
-                if self.goal['y'] - self.goal['l']/2 < finger[1] < self.goal['y'] + self.goal['l']/2:
-                    r += 1.
-                    self.on_goal += 1
-                    if self.on_goal > 50:
-                        # r += (200 - self.on_goal)
-                        done = True
-            else:
-                self.on_goal = 0
+            if p.getJointState(self.boxID, 1)[0] < 0.1:
+                print('Box closed!')
+                self.box_closed = True
+                reward = 1
+        return reward
 
-        # state
-        s = np.concatenate((a1xy_/200, a2xy_/200, finger/200, dist1 +
-                           dist2 + dist3, [1. if self.on_goal else 0.]))
+    def get_observation(self):
+        obs = dict()
+        if isinstance(self.camera, Camera):
+            rgb, depth, seg = self.camera.shot()
+            obs.update(dict(rgb=rgb, depth=depth, seg=seg))
+        else:
+            assert self.camera is None
+        obs.update(self.robot.get_joint_obs())
 
-        return s, r, done
+        return obs
+
+    def reset_box(self):
+        p.setJointMotorControl2(self.boxID, 0, p.POSITION_CONTROL, force=1)
+        p.setJointMotorControl2(self.boxID, 1, p.VELOCITY_CONTROL, force=0)
 
     def reset(self):
-        self.goal['x'] = np.random.rand()*600.
-        self.goal['y'] = np.random.rand()*300.
-        # test that goal is within reach of arm:
-        while np.sqrt((self.goal['x']-300)**2 + self.goal['y']**2) > 300.:
-            self.goal['x'] = np.random.rand()*600.
-            self.goal['y'] = np.random.rand()*300.
-        self.arm_info['r'] = 2 * np.pi * np.random.rand(3)
-        self.on_goal = 0
-        (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
-        (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
-        a1xy = np.array([300., 0.])    # a1 start (x0, y0)
-        a1xy_ = np.array([np.cos(a1r), np.sin(a1r)]) * a1l + \
-            a1xy  # a1 end and a2 start (x1, y1)
-        a2xy_ = np.array([np.cos(a1r + a2r), np.sin(a1r + a2r)]) * \
-            a2l + a1xy_  # a2 end (x2, y2) and a3 start
-        finger = np.array(
-            [np.cos(a1r+a2r+a3r), np.sin(a1r+a2r+a3r)])*a3l + a2xy_  # a3 end
-        # normalize features
-        dist1 = [(self.goal['x'] - a1xy_[0]) / 600,
-                 (self.goal['y'] - a1xy_[1]) / 600]
-        dist2 = [(self.goal['x'] - a2xy_[0]) / 600,
-                 (self.goal['y'] - a2xy_[1]) / 600]
-        dist3 = [(self.goal['x'] - finger[0]) / 600,
-                 (self.goal['y'] - finger[1]) / 600]
-        # state
-        s = np.concatenate((a1xy_/200, a2xy_/200, finger/200, dist1 +
-                           dist2 + dist3, [1. if self.on_goal else 0.]))
-        return s
+        self.robot.reset()
+        self.reset_box()
+        return self.get_observation()
 
-    def render(self):
-        if self.viewer is None:
-            self.viewer = Viewer(self.arm_info, self.goal)
-        self.viewer.render()
-
-    def sample_action(self):
-        return np.random.rand(2)-0.5    # two radians
-
-
-class Viewer(pyglet.window.Window):
-    bar_thc = 5
-
-    def __init__(self, arm_info, goal):
-        # vsync=False to not use the monitor FPS, we can speed up training
-        super(Viewer, self).__init__(width=600, height=300,
-                                     resizable=False, caption='Arm', vsync=False)
-        pyglet.gl.glClearColor(1, 1, 1, 1)
-        self.arm_info = arm_info
-        self.goal_info = goal
-        self.center_coord = np.array([300, 0])
-        self.mouse = True
-
-        self.batch = pyglet.graphics.Batch()    # display whole batch at once
-        self.goal = self.batch.add(4, pyglet.gl.GL_QUADS, None,    # 4 corners
-                                   ('v2f', [goal['x'] - goal['l'] / 2, goal['y'] - goal['l'] / 2,                # location
-                                            goal['x'] - goal['l'] / \
-                                            2, goal['y'] + goal['l'] / 2,
-                                            goal['x'] + goal['l'] / \
-                                            2, goal['y'] + goal['l'] / 2,
-                                            goal['x'] + goal['l'] / 2, goal['y'] - goal['l'] / 2]),
-                                #    ('c3B', (255, 255, 255) * 4))    # color
-                                   ('c3B', (86, 109, 249) * 4))    # color
-        self.arm1 = self.batch.add(4, pyglet.gl.GL_QUADS, None,
-                                   ('v2f', [250, 250,                # location
-                                            250, 300,
-                                            260, 300,
-                                            260, 250]),
-                                   ('c3B', (249, 86, 86) * 4,))    # color
-        self.arm2 = self.batch.add(4, pyglet.gl.GL_QUADS, None,
-                                   ('v2f', [100, 150,              # location
-                                            100, 160,
-                                            200, 160,
-                                            200, 150]),
-                                   ('c3B', (249, 86, 86) * 4,))
-        self.arm3 = self.batch.add(4, pyglet.gl.GL_QUADS, None,
-                                   ('v2f', [100, 150,              # location
-                                            100, 160,
-                                            200, 160,
-                                            200, 150]),
-                                   ('c3B', (249, 86, 86) * 4,))
-
-    def render(self):
-        self._update_arm()
-        self.switch_to()
-        self.dispatch_events()
-        self.dispatch_event('on_draw')
-        self.flip()
-
-    def on_draw(self):
-        self.clear()
-        self.batch.draw()
-
-    def _update_arm(self):
-        # update goal
-        self.goal.vertices = (
-            self.goal_info['x'] - self.goal_info['l'] /
-            2, self.goal_info['y'] - self.goal_info['l']/2,
-            self.goal_info['x'] + self.goal_info['l'] /
-            2, self.goal_info['y'] - self.goal_info['l']/2,
-            self.goal_info['x'] + self.goal_info['l'] /
-            2, self.goal_info['y'] + self.goal_info['l']/2,
-            self.goal_info['x'] - self.goal_info['l']/2, self.goal_info['y'] + self.goal_info['l']/2)
-
-        # update arm
-        (a1l, a2l, a3l) = self.arm_info['l']  # radius, arm length
-        (a1r, a2r, a3r) = self.arm_info['r']  # radian, angle
-        a1xy = self.center_coord            # a1 start (x0, y0)
-        a1xy_ = np.array([np.cos(a1r), np.sin(a1r)])*a1l + \
-            a1xy   # a1 end and a2 start (x1, y1)
-        a2xy_ = np.array([np.cos(a1r+a2r), np.sin(a1r+a2r)]) * \
-            a2l + a1xy_  # a2 end (x2, y2)
-        a3xy_ = np.array(
-            [np.cos(a1r+a2r+a3r), np.sin(a1r+a2r+a3r)])*a3l + a2xy_  # a3 end
-
-        a1tr, a2tr, a3tr = np.pi / 2 - self.arm_info['r'][0], \
-            np.pi / 2 - self.arm_info['r'][0] + self.arm_info['r'][1], \
-            np.pi / 2 - self.arm_info['r'].sum()
-        xy01 = a1xy + np.array([-np.cos(a1tr), np.sin(a1tr)]) * self.bar_thc
-        xy02 = a1xy + np.array([np.cos(a1tr), -np.sin(a1tr)]) * self.bar_thc
-        xy11 = a1xy_ + np.array([np.cos(a1tr), -np.sin(a1tr)]) * self.bar_thc
-        xy12 = a1xy_ + np.array([-np.cos(a1tr), np.sin(a1tr)]) * self.bar_thc
-
-        xy11_ = a1xy_ + np.array([np.cos(a2tr), -np.sin(a2tr)]) * self.bar_thc
-        xy12_ = a1xy_ + np.array([-np.cos(a2tr), np.sin(a2tr)]) * self.bar_thc
-        xy21 = a2xy_ + np.array([-np.cos(a2tr), np.sin(a2tr)]) * self.bar_thc
-        xy22 = a2xy_ + np.array([np.cos(a2tr), -np.sin(a2tr)]) * self.bar_thc
-
-        xy21_ = a2xy_ + np.array([-np.cos(a3tr), np.sin(a3tr)]) * self.bar_thc
-        xy22_ = a2xy_ + np.array([np.cos(a3tr), -np.sin(a3tr)]) * self.bar_thc
-        xy31 = a3xy_ + np.array([np.cos(a3tr), -np.sin(a3tr)]) * self.bar_thc
-        xy32 = a3xy_ + np.array([-np.cos(a3tr), np.sin(a3tr)]) * self.bar_thc
-
-        self.arm1.vertices = np.concatenate((xy01, xy02, xy11, xy12))
-        self.arm2.vertices = np.concatenate((xy11_, xy12_, xy21, xy22))
-        self.arm3.vertices = np.concatenate((xy21_, xy22_, xy31, xy32))
-
-    # convert the mouse coordinate to goal's coordinate
-    def on_mouse_motion(self, x, y, dx, dy):
-        if self.mouse:
-            self.goal_info['x'] = x
-            self.goal_info['y'] = y
-        # print(self.goal_info)
-
-    def draw_circles(self, filename):
-        f = open(filename, 'r')
-        inp = f.readline()
-        self.circles = []
-        while inp != "":
-            inp = inp.split()
-            circle = shapes.Circle(x=float(inp[0]), y=float(inp[1]), radius=5, color=(0, 0, 0), batch=self.batch)
-            self.circles.append(circle)
-            inp = f.readline()
-        f.close()
-
-
-if __name__ == '__main__':
-    env = ArmEnv()
-    while True:
-        env.render()
-        env.step(env.sample_action())
+    def close(self):
+        p.disconnect(self.physicsClient)
