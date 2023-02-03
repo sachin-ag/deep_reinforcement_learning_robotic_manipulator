@@ -1,35 +1,93 @@
-import os
-
-import numpy as np
-import pybullet as p
-
-from tqdm import tqdm
 from env import ClutteredPushGrasp
 from robot import UR5Robotiq85
-from utilities import YCBModels, Camera
-# import time
-# import math
+from rl import DDPG
+
+MAX_EPISODES = 1000
+MAX_EP_STEPS = 50
 
 
-def user_control_demo():
-    ycb_models = YCBModels(
-        os.path.join('./data/ycb', '**', 'textured-decmp.obj'),
-    )
-    camera = Camera((1, 1, 1),
-                    (0, 0, 0),
-                    (0, 0, 1),
-                    0.1, 5, (320, 320), 40)
-    camera = None
-    # robot = Panda((0, 0.5, 0), (0, 0, math.pi))
-    robot = UR5Robotiq85((0, 0.5, 0), (0, 0, 0))
-    env = ClutteredPushGrasp(robot, ycb_models, camera, vis=True)
+rl = DDPG(6, 43, [-0.1, 0.1], 5*MAX_EPISODES)
 
-    env.reset()
-    # env.SIMULATION_STEP_DELAY = 0
+
+def train():
+    env = ClutteredPushGrasp(UR5Robotiq85((0, 0.5, 0), (0, 0, 0)))
+    f1 = open("./accuracy.txt", 'w')
+    f2 = open("./rewards.txt", 'w')
+    acc = 0
+    for i in range(MAX_EPISODES):
+        s = env.reset()
+        ep_r = 0.
+        for j in range(MAX_EP_STEPS):
+            a = rl.choose_action(s)
+            s_, r, done = env.step(a, 'joint')
+            rl.store_transition(s, a, r, s_)
+            ep_r += r
+            if rl.memory_full:
+                rl.learn()
+            s = s_
+            if done or j == MAX_EP_STEPS-1:
+                if done:
+                    acc = 0.01 + 0.99*acc
+                else:
+                    acc = 0.99*acc
+                f1.write("%f\n" % acc)
+                f2.write("%f\n" % ep_r)
+                print('\nEp: %i | %s | r: %.1f | step: %i | acc:' %
+                      (i, '----' if not done else 'done', ep_r, j), round(acc, 2))
+                break
+    f1.close()
+    f2.close()
+    rl.save()
+    env.close()
+
+
+def simulate(filename=None):
+    rl.restore()
+    env = ClutteredPushGrasp(UR5Robotiq85((0, 0.5, 0), (0, 0, 0)), vis=True)
+    s = env.reset()
+    if filename != None:
+        f = open(filename, 'r')
+    episodes = 0
+    completed = 0
     while True:
-        obs, reward, done, info = env.step(env.read_debug_parameter(), 'end')
-        # print(obs, reward, done, info)
+        steps = 0
+        done = False
+        episodes += 1
+        r = 0
+
+        if filename == None:
+            inp = input('\nEnter coordinates: ')
+        else:
+            inp = f.readline()
+            if inp == "":
+                f.close()
+                print("Accuracy during trajectory tracking is", completed/episodes)
+                break
+        inp = inp.split()
+        env.set_goal([float(inp[0]), float(inp[1]), float(inp[2])])
+
+        while not done and steps < 100:
+            steps += 1
+            env.step_simulation()
+            a = rl.choose_action(s)
+            s, r, done = env.step(a)
+        # print(env.robot.get_ee_pos())
+
+        if r > 0:
+            completed += 1
+    env.close()
 
 
-if __name__ == '__main__':
-    user_control_demo()
+if __name__ == "__main__":
+    print("Options:\n0 -> Train\n1 -> Simulate using given points\n2 -> Simulate using a file with coordinates")
+    inp = input("enter 0, 1 or 2: ")
+    if inp == "0":
+        train()
+    elif inp == "1":
+        print("Enter x, y and z coordinates separated by space and press enter.")
+        simulate()
+    elif inp == "2":
+        filename = input("Enter filename: ")
+        simulate(filename)
+    else:
+        print("Invalid option.\n")

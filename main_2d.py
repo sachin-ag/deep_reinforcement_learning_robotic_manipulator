@@ -19,7 +19,6 @@ a_bound = env.action_bound
 # set RL method (continuous)
 rl = DDPG(a_dim, s_dim, a_bound)
 
-steps = []
 def train():
     # start training
     f1 = open("./accuracy.txt", 'w')
