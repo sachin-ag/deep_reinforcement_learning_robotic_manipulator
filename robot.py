@@ -64,6 +64,8 @@ class RobotBase(object):
             jointMaxForce = info[10]
             jointMaxVelocity = info[11]
             controllable = (jointType != p.JOINT_FIXED)
+            # if controllable:
+            #     print(jointID, jointName, jointLowerLimit, jointUpperLimit, '\n')
             if controllable:
                 self.controllable_joints.append(jointID)
                 p.setJointMotorControl2(

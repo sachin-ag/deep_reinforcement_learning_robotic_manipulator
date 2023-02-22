@@ -1,16 +1,19 @@
 from env import ClutteredPushGrasp
 from robot import UR5Robotiq85
 from rl import DDPG
+import os
+os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
-MAX_EPISODES = 1000
-MAX_EP_STEPS = 50
+MAX_EPISODES = 10000
+MAX_EP_STEPS = 100
 
 
-rl = DDPG(6, 43, [-0.1, 0.1], 5*MAX_EPISODES)
+rl = DDPG(4, 31, [-0.1, 0.1], 5*MAX_EPISODES)
 
 
 def train():
-    env = ClutteredPushGrasp(UR5Robotiq85((0, 0.5, 0), (0, 0, 0)))
+    env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)))
     f1 = open("./accuracy.txt", 'w')
     f2 = open("./rewards.txt", 'w')
     acc = 0
@@ -32,8 +35,8 @@ def train():
                     acc = 0.99*acc
                 f1.write("%f\n" % acc)
                 f2.write("%f\n" % ep_r)
-                print('\nEp: %i | %s | r: %.1f | step: %i | acc:' %
-                      (i, '----' if not done else 'done', ep_r, j), round(acc, 2))
+                print('\nEp: %i | %s | r: %.1f | acc:' %
+                      (i, '----' if not done else 'done', ep_r), round(acc, 2))
                 break
     f1.close()
     f2.close()
@@ -71,7 +74,6 @@ def simulate(filename=None):
             env.step_simulation()
             a = rl.choose_action(s)
             s, r, done = env.step(a)
-        # print(env.robot.get_ee_pos())
 
         if r > 0:
             completed += 1
