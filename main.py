@@ -3,13 +3,13 @@ from robot import UR5Robotiq85
 from rl import DDPG
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "3"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 MAX_EPISODES = 10000
 MAX_EP_STEPS = 100
 
 
-rl = DDPG(4, 31, [-0.1, 0.1], 5*MAX_EPISODES)
+rl = DDPG(4, 31, [-0.1, 0.1], 15000)
 
 
 def train():

@@ -1,7 +1,6 @@
 import numpy as np
 import pybullet as p
 import pybullet_data
-from tqdm import tqdm
 
 
 class ClutteredPushGrasp:
@@ -9,8 +8,6 @@ class ClutteredPushGrasp:
     def __init__(self, robot, camera=None, vis=False) -> None:
         self.robot = robot
         self.vis = vis
-        if self.vis:
-            self.p_bar = tqdm(ncols=0, disable=False)
         self.camera = camera
         # define environment
         self.physicsClient = p.connect(p.GUI if self.vis else p.DIRECT)
@@ -50,9 +47,6 @@ class ClutteredPushGrasp:
         Hook p.stepSimulation()
         """
         p.stepSimulation()
-        if self.vis:
-            # time.sleep(self.SIMULATION_STEP_DELAY)
-            self.p_bar.update(1)
 
     def step(self, action, control_method='joint'):
         """
