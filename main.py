@@ -1,15 +1,16 @@
 from env import ClutteredPushGrasp
 from robot import UR5Robotiq85
 from rl import DDPG
+import pybullet as p
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
-MAX_EPISODES = 10000
+MAX_EPISODES = 1000
 MAX_EP_STEPS = 100
 
 
-rl = DDPG(4, 31, [-0.1, 0.1], 15000)
+rl = DDPG(4, 31, [-0.5, 0.5], 15000)
 
 
 def train():
@@ -38,36 +39,37 @@ def train():
                 print('\nEp: %i | %s | r: %.1f | acc:' %
                       (i, '----' if not done else 'done', ep_r), round(acc, 2))
                 break
+        print('Goal:', env.goal, '\nFinal_pos:', env.robot.get_ee_pos())
     f1.close()
     f2.close()
     rl.save()
     env.close()
 
 
-def simulate(filename=None):
+def simulate(filename):
     rl.restore()
-    env = ClutteredPushGrasp(UR5Robotiq85((0, 0.5, 0), (0, 0, 0)), vis=True)
+    env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)), vis=True)
     s = env.reset()
-    if filename != None:
-        f = open(filename, 'r')
+    points = []
+    colors = []
+
+    with open(filename) as f:
+        point = f.readline()
+        while point != '':
+            x, y, z = point.split()
+            points.append([float(x), float(y), float(z)])
+            colors.append([240./255, 1./255, 1./255])
+            point = f.readline()
+        f.close()
     episodes = 0
-    completed = 0
-    while True:
+    p.addUserDebugPoints(points, colors, 5)
+
+    for point in points:
         steps = 0
         done = False
         episodes += 1
         r = 0
-
-        if filename == None:
-            inp = input('\nEnter coordinates: ')
-        else:
-            inp = f.readline()
-            if inp == "":
-                f.close()
-                print("Accuracy during trajectory tracking is", completed/episodes)
-                break
-        inp = inp.split()
-        env.set_goal([float(inp[0]), float(inp[1]), float(inp[2])])
+        env.set_goal(point)
 
         while not done and steps < 100:
             steps += 1
@@ -75,20 +77,15 @@ def simulate(filename=None):
             a = rl.choose_action(s)
             s, r, done = env.step(a)
 
-        if r > 0:
-            completed += 1
     env.close()
 
 
 if __name__ == "__main__":
-    print("Options:\n0 -> Train\n1 -> Simulate using given points\n2 -> Simulate using a file with coordinates")
-    inp = input("enter 0, 1 or 2: ")
+    print("Options:\n0 -> Train\n1 -> Simulate using a file with coordinates")
+    inp = input("enter 0 or 1: ")
     if inp == "0":
         train()
     elif inp == "1":
-        print("Enter x, y and z coordinates separated by space and press enter.")
-        simulate()
-    elif inp == "2":
         filename = input("Enter filename: ")
         simulate(filename)
     else:

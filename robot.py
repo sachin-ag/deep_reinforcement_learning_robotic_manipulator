@@ -115,7 +115,7 @@ class RobotBase(object):
                                     force=self.joints[joint_id].maxForce, maxVelocity=self.joints[joint_id].maxVelocity)
 
     def get_ee_pos(self):
-        return p.getLinkState(self.id, self.eef_id)[0]
+        return [round(x, 2) for x in p.getLinkState(self.id, self.eef_id)[0]]
 
     def get_joint_pos(self):
         return [p.getLinkState(self.id, joint_id)[0] for joint_id in self.arm_controllable_joints]

@@ -19,28 +19,13 @@ class ClutteredPushGrasp:
         self.robot.load()
         self.robot.step_simulation = self.step_simulation
 
-        # # custom sliders to tune parameters (name of the parameter,range,initial value)
-        # self.xin = p.addUserDebugParameter("x", -0.224, 0.224, 0)
-        # self.yin = p.addUserDebugParameter("y", -0.224, 0.224, 0)
-        # self.zin = p.addUserDebugParameter("z", 0, 1., 0.5)
-        # self.rollId = p.addUserDebugParameter("roll", -3.14, 3.14, 0)
-        # self.pitchId = p.addUserDebugParameter("pitch", -3.14, 3.14, np.pi/2)
-        # self.yawId = p.addUserDebugParameter("yaw", -np.pi/2, np.pi/2, np.pi/2)
-        # self.gripper_opening_length_control = p.addUserDebugParameter(
-        #     "gripper_opening_length", 0, 0.085, 0.04)
-
-        # self.boxID = p.loadURDF("./urdf/skew-box-button.urdf",
-        #                         [0.0, 0.0, 0.0],
-        #                         # p.getQuaternionFromEuler([0, 1.5706453, 0]),
-        #                         p.getQuaternionFromEuler([0, 0, 0]),
-        #                         useFixedBase=True,
-        #                         flags=p.URDF_MERGE_FIXED_LINKS | p.URDF_USE_SELF_COLLISION)
-
-        # # For calculating the reward
-        # self.box_opened = False
-        # self.btn_pressed = False
-        # self.box_closed = False
         self.on_goal = 0
+        i=0
+        for joint_id in self.robot.arm_controllable_joints:
+            if i==4:
+                break
+            p.changeDynamics(self.robot.id, joint_id, jointLowerLimit=-float('inf'), jointUpperLimit=float('inf'))
+            i+=1
 
     def step_simulation(self):
         """
@@ -59,26 +44,21 @@ class ClutteredPushGrasp:
         action = np.append(action, [0, 0], 0)
         action = action + self.robot.get_joint_angles()
         self.robot.move_ee(action, control_method)
-        if self.vis:
-            for _ in range(120):
-                self.step_simulation()
-        else:
-            for _ in range(12):
-                self.step_simulation()
+        for _ in range(30):
+            self.step_simulation()
         reward, done = self.update_reward_ddpg()
-        # done = Trt(box_opened=self.box_opened, btn_pressed=self.btn_pressed, box_closed=self.box_closed)
         return self.generate_state(done), reward, done
 
     def set_goal(self, goal):
         self.goal = goal
 
     def set_random_goal(self):
-        x = np.random.uniform(.25, .5)
-        y = np.random.uniform(.25, .5)
+        x = np.random.uniform(.25, .75)
+        y = np.random.uniform(.25, .75)
         x *= np.random.choice([-1, 1])
         y *= np.random.choice([-1, 1])
-        z = np.random.rand()
-        self.goal = [x, y, z]
+        z = np.random.uniform(0.25, 0.75)
+        self.goal = [round(x, 2), round(y, 2), round(z, 2)]
 
     def update_reward_ddpg(self):
         pos = self.robot.get_ee_pos()
