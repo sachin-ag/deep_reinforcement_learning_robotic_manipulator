@@ -84,8 +84,7 @@ def simulate(filename):
             r_ += r
 
         pos = env.robot.get_ee_pos()
-        error = -np.sqrt((self.goal[0]-pos[0])**2 + (self.goal[1]-
-                            pos[1])**2 + (self.goal[2]-pos[2])**2)
+        error = -np.sqrt((goal[0]-pos[0])**2 + (goal[1]-pos[1])**2 + (goal[2]-pos[2])**2)
         error_ += error
         print('\nGoal:', env.goal)
         print('Position:', pos)
