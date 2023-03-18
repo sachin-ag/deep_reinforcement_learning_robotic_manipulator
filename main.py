@@ -4,13 +4,13 @@ from rl import DDPG
 import pybullet as p
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "2"
+os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-MAX_EPISODES = 1000
-MAX_EP_STEPS = 100
+MAX_EPISODES = 50000
+MAX_EP_STEPS = 200
 
 
-rl = DDPG(4, 31, [-0.5, 0.5], 15000)
+rl = DDPG(4, 31, [-0.5, 0.5], 150000)
 
 
 def train():
@@ -40,6 +40,8 @@ def train():
                       (i, '----' if not done else 'done', ep_r), round(acc, 2))
                 break
         print('Goal:', env.goal, '\nFinal_pos:', env.robot.get_ee_pos())
+        if i % 5000 == 0:
+            rl.save()
     f1.close()
     f2.close()
     rl.save()

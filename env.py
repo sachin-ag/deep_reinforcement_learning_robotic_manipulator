@@ -2,6 +2,8 @@ import numpy as np
 import pybullet as p
 import pybullet_data
 
+THRESHOLD = 0.05
+ON_GOAL_THRESHOLD = 50
 
 class ClutteredPushGrasp:
 
@@ -44,7 +46,7 @@ class ClutteredPushGrasp:
         action = np.append(action, [0, 0], 0)
         action = action + self.robot.get_joint_angles()
         self.robot.move_ee(action, control_method)
-        for _ in range(30):
+        for _ in range(12):
             self.step_simulation()
         reward, done = self.update_reward_ddpg()
         return self.generate_state(done), reward, done
@@ -65,12 +67,12 @@ class ClutteredPushGrasp:
         r = -np.sqrt((self.goal[0]-pos[0])**2 +
                      (self.goal[1]-pos[1])**2 + (self.goal[2]-pos[2])**2)
         done = False
-        if (self.goal[0] - 0.05 < pos[0] < self.goal[0] + 0.05) and (
-                self.goal[1] - 0.05 < pos[1] < self.goal[1] + 0.05) and (
-                self.goal[2] - 0.1 < pos[2] < self.goal[2] + 0.1):
+        if  (abs(pos[0] - self.goal[0]) < THRESHOLD) and \
+            (abs(pos[1] - self.goal[1]) < THRESHOLD) and \
+            (abs(pos[2] - self.goal[2]) < THRESHOLD):
             r += 1
             self.on_goal += 1
-            if self.on_goal >= 20:
+            if self.on_goal >= ON_GOAL_THRESHOLD:
                 done = True
         else:
             self.on_goal = 0
@@ -81,31 +83,18 @@ class ClutteredPushGrasp:
         goal = self.goal
         joints_pos = self.robot.get_joint_pos()
         s = []
-        i = 0
-        for joint_pos in joints_pos:
-            i += 1
-            if i > 4:
-                break
+        for joint_pos in joints_pos[:-2]:
             s.extend([joint_pos[0], joint_pos[1], joint_pos[2], (joint_pos[0] -
                      goal[0]), (joint_pos[1] - goal[1]), (joint_pos[2] - goal[2])])
-        s.extend([ee_pos[0], ee_pos[1], ee_pos[2]/1, (ee_pos[0] -
+        s.extend([ee_pos[0], ee_pos[1], ee_pos[2], (ee_pos[0] -
                  goal[0]), (ee_pos[1] - goal[1]), (ee_pos[2] - goal[2])])
-        if done:
-            s.append(1)
-        else:
-            s.append(0)
-        # print(s)
+        s.append(1) if done else s.append(0)
         return np.array(s)
-
-    # def reset_box(self):
-    #     p.setJointMotorControl2(self.boxID, 0, p.POSITION_CONTROL, force=1)
-    #     p.setJointMotorControl2(self.boxID, 1, p.VELOCITY_CONTROL, force=0)
 
     def reset(self):
         self.on_goal = 0
         self.set_random_goal()
         self.robot.reset()
-        # self.reset_box()
         return self.generate_state()
 
     def close(self):
