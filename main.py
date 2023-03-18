@@ -4,6 +4,7 @@ from rl import DDPG
 import pybullet as p
 import numpy as np
 import os
+import sys
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -96,12 +97,8 @@ def simulate(filename):
 
 
 if __name__ == "__main__":
-    print("Options:\n0 -> Train\n1 -> Simulate using a file with coordinates")
-    inp = input("enter 0 or 1: ")
-    if inp == "0":
+    if len(sys.argv) == 1:
         train()
-    elif inp == "1":
-        filename = input("Enter filename: ")
-        simulate(filename)
     else:
-        print("Invalid option.\n")
+        filename = sys.argv[1]
+        simulate(filename)
