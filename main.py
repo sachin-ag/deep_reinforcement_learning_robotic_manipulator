@@ -6,7 +6,7 @@ import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-MAX_EPISODES = 1000
+MAX_EPISODES = 10000
 MAX_EP_STEPS = 100
 
 
@@ -79,7 +79,7 @@ def simulate(filename):
             a = rl.choose_action(s)
             s, r, done = env.step(a)
 
-        print('Goal:', env.goal, '\nFinal_pos:', env.robot.get_ee_pos())
+        print('\nGoal:', env.goal, '\nFinal_pos:', env.robot.get_ee_pos())
     env.close()
 
 

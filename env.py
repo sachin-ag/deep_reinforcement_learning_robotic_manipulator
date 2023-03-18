@@ -23,12 +23,8 @@ class ClutteredPushGrasp:
         self.robot.step_simulation = self.step_simulation
 
         self.on_goal = 0
-        i=0
-        for joint_id in self.robot.arm_controllable_joints:
-            if i==4:
-                break
+        for joint_id in self.robot.arm_controllable_joints[:-2]:
             p.changeDynamics(self.robot.id, joint_id, jointLowerLimit=-float('inf'), jointUpperLimit=float('inf'))
-            i+=1
 
     def step_simulation(self):
         """
@@ -46,9 +42,11 @@ class ClutteredPushGrasp:
         assert control_method in ('joint', 'end')
         action = np.append(action, [0, 0], 0)
         action = action + self.robot.get_joint_angles()
+        self.prev_joint_angles = self.robot.get_joint_angles()
         self.robot.move_ee(action, control_method)
         for _ in range(STEP_SIMULATIONS):
             self.step_simulation()
+        self.curr_joint_angles = self.robot.get_joint_angles()
         reward, done = self.update_reward_ddpg()
         return self.generate_state(done), reward, done
 
@@ -77,6 +75,9 @@ class ClutteredPushGrasp:
                 done = True
         else:
             self.on_goal = 0
+        for prev_angle, curr_angle in zip(self.prev_joint_angles, self.curr_joint_angles):
+            if abs(curr_angle - prev_angle) > 3.14:
+                r -= 1
         return r, done
 
     def generate_state(self, done=False):
