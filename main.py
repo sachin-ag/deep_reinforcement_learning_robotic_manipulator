@@ -2,11 +2,12 @@ from env import ClutteredPushGrasp
 from robot import UR5Robotiq85
 from rl import DDPG
 import pybullet as p
+import numpy as np
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-MAX_EPISODES = 10000
+MAX_EPISODES = 100000
 MAX_EP_STEPS = 100
 
 
@@ -49,9 +50,6 @@ def train():
 
 
 def simulate(filename):
-    rl.restore()
-    env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)), vis=True)
-    s = env.reset()
     points = []
     colors = []
 
@@ -63,6 +61,11 @@ def simulate(filename):
             colors.append([240./255, 1./255, 1./255])
             point = f.readline()
         f.close()
+    
+    env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)), vis=True)
+    s = env.reset()
+    rl.restore()
+    error_ = 0
     episodes = 0
     p.addUserDebugPoints(points, colors, 5)
 
@@ -70,7 +73,7 @@ def simulate(filename):
         steps = 0
         done = False
         episodes += 1
-        r = 0
+        r_ = 0
         env.set_goal(point)
 
         while not done and steps < 100:
@@ -78,8 +81,18 @@ def simulate(filename):
             env.step_simulation()
             a = rl.choose_action(s)
             s, r, done = env.step(a)
+            r_ += r
 
-        print('\nGoal:', env.goal, '\nFinal_pos:', env.robot.get_ee_pos())
+        pos = env.robot.get_ee_pos()
+        error = -np.sqrt((self.goal[0]-pos[0])**2 + (self.goal[1]-
+                            pos[1])**2 + (self.goal[2]-pos[2])**2)
+        error_ += error
+        print('\nGoal:', env.goal)
+        print('Position:', pos)
+        print('Reward:', r_)
+        print('Error:', error)
+
+    print("\n\nTotal Error:", error_)
     env.close()
 
 
