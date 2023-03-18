@@ -3,7 +3,8 @@ import pybullet as p
 import pybullet_data
 
 THRESHOLD = 0.05
-ON_GOAL_THRESHOLD = 50
+ON_GOAL_THRESHOLD = 25
+STEP_SIMULATIONS = 30
 
 class ClutteredPushGrasp:
 
@@ -46,7 +47,7 @@ class ClutteredPushGrasp:
         action = np.append(action, [0, 0], 0)
         action = action + self.robot.get_joint_angles()
         self.robot.move_ee(action, control_method)
-        for _ in range(12):
+        for _ in range(STEP_SIMULATIONS):
             self.step_simulation()
         reward, done = self.update_reward_ddpg()
         return self.generate_state(done), reward, done
@@ -57,9 +58,9 @@ class ClutteredPushGrasp:
     def set_random_goal(self):
         x = np.random.uniform(.25, .75)
         y = np.random.uniform(.25, .75)
+        z = np.random.uniform(.25, .75)
         x *= np.random.choice([-1, 1])
         y *= np.random.choice([-1, 1])
-        z = np.random.uniform(0.25, 0.75)
         self.goal = [round(x, 2), round(y, 2), round(z, 2)]
 
     def update_reward_ddpg(self):
@@ -67,9 +68,9 @@ class ClutteredPushGrasp:
         r = -np.sqrt((self.goal[0]-pos[0])**2 +
                      (self.goal[1]-pos[1])**2 + (self.goal[2]-pos[2])**2)
         done = False
-        if  (abs(pos[0] - self.goal[0]) < THRESHOLD) and \
-            (abs(pos[1] - self.goal[1]) < THRESHOLD) and \
-            (abs(pos[2] - self.goal[2]) < THRESHOLD):
+        if (abs(pos[0] - self.goal[0]) < THRESHOLD) and \
+           (abs(pos[1] - self.goal[1]) < THRESHOLD) and \
+           (abs(pos[2] - self.goal[2]) < THRESHOLD):
             r += 1
             self.on_goal += 1
             if self.on_goal >= ON_GOAL_THRESHOLD:
@@ -81,9 +82,9 @@ class ClutteredPushGrasp:
     def generate_state(self, done=False):
         ee_pos = self.robot.get_ee_pos()
         goal = self.goal
-        joints_pos = self.robot.get_joint_pos()
+        joints_pos = self.robot.get_joint_pos()[:-2]
         s = []
-        for joint_pos in joints_pos[:-2]:
+        for joint_pos in joints_pos:
             s.extend([joint_pos[0], joint_pos[1], joint_pos[2], (joint_pos[0] -
                      goal[0]), (joint_pos[1] - goal[1]), (joint_pos[2] - goal[2])])
         s.extend([ee_pos[0], ee_pos[1], ee_pos[2], (ee_pos[0] -
@@ -94,7 +95,6 @@ class ClutteredPushGrasp:
     def reset(self):
         self.on_goal = 0
         self.set_random_goal()
-        self.robot.reset()
         return self.generate_state()
 
     def close(self):

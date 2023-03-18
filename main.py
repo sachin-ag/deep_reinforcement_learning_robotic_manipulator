@@ -6,11 +6,11 @@ import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-MAX_EPISODES = 50000
-MAX_EP_STEPS = 200
+MAX_EPISODES = 1000
+MAX_EP_STEPS = 100
 
 
-rl = DDPG(4, 31, [-0.5, 0.5], 150000)
+rl = DDPG(4, 31, [-0.5, 0.5], int((MAX_EPISODES*MAX_EP_STEPS)/10))
 
 
 def train():
@@ -79,6 +79,7 @@ def simulate(filename):
             a = rl.choose_action(s)
             s, r, done = env.step(a)
 
+        print('Goal:', env.goal, '\nFinal_pos:', env.robot.get_ee_pos())
     env.close()
 
 
