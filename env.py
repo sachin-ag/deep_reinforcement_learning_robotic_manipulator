@@ -76,7 +76,7 @@ class ClutteredPushGrasp:
         else:
             self.on_goal = 0
         for prev_angle, curr_angle in zip(self.prev_joint_angles, self.curr_joint_angles):
-            if abs(curr_angle - prev_angle) > 3.14:
+            if abs(curr_angle - prev_angle) > .785: # pi/4
                 r -= 1
         return r, done
 

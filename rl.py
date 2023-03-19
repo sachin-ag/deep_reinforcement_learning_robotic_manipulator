@@ -32,7 +32,7 @@ class DDPG(object):
         with tf.variable_scope('Critic'):
             # assign self.a = a in memory when calculating q for td_error,
             # otherwise the self.a is from Actor when updating Actor
-            q = self._build_c(self.S, self.a, scope='eval', trainable=True)
+            self.q = self._build_c(self.S, self.a, scope='eval', trainable=True)
             q_ = self._build_c(self.S_, a_, scope='target', trainable=False)
 
         # networks parameters
@@ -51,11 +51,11 @@ class DDPG(object):
 
         q_target = self.R + GAMMA * q_
         # in the feed_dic for the td_error, the self.a should change to actions in memory
-        td_error = tf.losses.mean_squared_error(labels=q_target, predictions=q)
+        td_error = tf.losses.mean_squared_error(labels=q_target, predictions=self.q)
         self.ctrain = tf.train.AdamOptimizer(LR_C).minimize(
             td_error, var_list=self.ce_params)
 
-        a_loss = - tf.reduce_mean(q)    # maximize the q
+        a_loss = - tf.reduce_mean(self.q)    # maximize the q
         self.atrain = tf.train.AdamOptimizer(
             LR_A).minimize(a_loss, var_list=self.ae_params)
 
@@ -63,6 +63,9 @@ class DDPG(object):
 
     def choose_action(self, s):
         return self.sess.run(self.a, {self.S: s[None, :]})[0]
+
+    def get_q_value(self, s, a):
+        return self.sess.run(self.q, {self.S: s[None, :], self.a: a[None, :]})
 
     def learn(self):
         # soft target replacement

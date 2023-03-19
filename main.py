@@ -8,7 +8,7 @@ import sys
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-MAX_EPISODES = 100000
+MAX_EPISODES = 10000
 MAX_EP_STEPS = 100
 
 
@@ -19,15 +19,18 @@ def train():
     env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)))
     f1 = open("./accuracy.txt", 'w')
     f2 = open("./rewards.txt", 'w')
+    f3 = open("./q_values.txt", 'w')
     acc = 0
     for i in range(MAX_EPISODES):
         s = env.reset()
         ep_r = 0.
+        ep_q = 0.
         for j in range(MAX_EP_STEPS):
             a = rl.choose_action(s)
             s_, r, done = env.step(a, 'joint')
             rl.store_transition(s, a, r, s_)
             ep_r += r
+            ep_q += rl.get_q_value(s, a)
             if rl.memory_full:
                 rl.learn()
             s = s_
@@ -38,6 +41,7 @@ def train():
                     acc = 0.99*acc
                 f1.write("%f\n" % acc)
                 f2.write("%f\n" % ep_r)
+                f3.write("%f\n" % ep_q)
                 print('\nEp: %i | %s | r: %.1f | acc:' %
                       (i, '----' if not done else 'done', ep_r), round(acc, 2))
                 break
