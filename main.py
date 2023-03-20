@@ -8,7 +8,7 @@ import sys
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
-MAX_EPISODES = 10000
+MAX_EPISODES = 100000
 MAX_EP_STEPS = 100
 
 
