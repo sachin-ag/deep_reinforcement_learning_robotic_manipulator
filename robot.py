@@ -123,6 +123,9 @@ class RobotBase(object):
     def get_joint_angles(self):
         return [p.getJointState(self.id, joint_id)[0] for joint_id in self.arm_controllable_joints]
 
+    def get_joint_velocities(self):
+        return [p.getJointState(self.id, joint_id)[1] for joint_id in self.arm_controllable_joints]
+
 
 class UR5Robotiq85(RobotBase):
     def __init_robot__(self):

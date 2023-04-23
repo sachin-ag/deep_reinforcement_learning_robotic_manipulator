@@ -1,17 +1,17 @@
 from env import ClutteredPushGrasp, THRESHOLD
 from robot import UR5Robotiq85
-from rl2 import DDPG
+from td3 import TD3
 import pybullet as p
 import numpy as np
 import sys
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "2"
 
 MAX_EPISODES = 1000
 MAX_EP_STEPS = 100
 
-rl = DDPG(4, 31, [-0.5, 0.5], int((MAX_EPISODES*MAX_EP_STEPS)/10))
+rl = TD3(31, 4, .5)
 
 def simulate(filename, vis=True):
     points = []
@@ -28,7 +28,7 @@ def simulate(filename, vis=True):
     
     env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)), vis)
     s = env.reset()
-    rl.restore()
+    rl.load("checkpoint/td3")
     error_ = 0
     episodes = 0
     completed = 0.
@@ -44,7 +44,7 @@ def simulate(filename, vis=True):
         while not done and steps < 100:
             steps += 1
             env.step_simulation()
-            a = rl.choose_action(s)
+            a = rl.select_action(s)
             s, r, done = env.step(a)
             r_ += r
 

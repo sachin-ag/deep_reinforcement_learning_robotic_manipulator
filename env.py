@@ -62,22 +62,33 @@ class ClutteredPushGrasp:
         self.goal = [round(x, 2), round(y, 2), round(z, 2)]
 
     def update_reward_ddpg(self):
+        rc = 0
+        ra = 0
+        rd = 0
         pos = self.robot.get_ee_pos()
-        r = -np.sqrt((self.goal[0]-pos[0])**2 +
+        dist = np.sqrt((self.goal[0]-pos[0])**2 +
                      (self.goal[1]-pos[1])**2 + (self.goal[2]-pos[2])**2)
+        if dist <= THRESHOLD:
+            rd = 100 * (1 - (dist/THRESHOLD))**.5
+        else:
+            rd = (1 - (dist/THRESHOLD))
         done = False
-        if (abs(pos[0] - self.goal[0]) < THRESHOLD) and \
-           (abs(pos[1] - self.goal[1]) < THRESHOLD) and \
-           (abs(pos[2] - self.goal[2]) < THRESHOLD):
-            r += 1
+        if dist <= THRESHOLD:
+            # r += 1
             self.on_goal += 1
+            self.x += rd
             if self.on_goal >= ON_GOAL_THRESHOLD:
+                ra += self.x
                 done = True
         else:
             self.on_goal = 0
+            self.x = 0
+            
         for prev_angle, curr_angle in zip(self.prev_joint_angles, self.curr_joint_angles):
             if abs(curr_angle - prev_angle) > .785: # pi/4
-                r -= 1
+                rc -= 1
+
+        r = (ra + rc + rd)
         return r, done
 
     def generate_state(self, done=False):
@@ -94,6 +105,7 @@ class ClutteredPushGrasp:
         return np.array(s)
 
     def reset(self):
+        self.x = 0
         self.on_goal = 0
         self.set_random_goal()
         return self.generate_state()

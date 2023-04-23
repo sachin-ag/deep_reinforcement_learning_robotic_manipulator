@@ -1,8 +1,10 @@
 from env import ClutteredPushGrasp
 from robot import UR5Robotiq85
-from rl2 import DDPG
+from td3 import TD3
+from ddpg import DDPG
 import os
-import random
+import sys
+
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
 os.environ["CUDA_VISIBLE_DEVICES"] = "0"
 
@@ -10,10 +12,7 @@ MAX_EPISODES = 10000
 MAX_EP_STEPS = 100
 
 
-rl = DDPG(4, 31, [-0.5, 0.5], int((MAX_EPISODES*MAX_EP_STEPS)/20))
-
-
-def train():
+def train(rl, algo):
     env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)))
     f1 = open("./results/accuracy.txt", 'w')
     f2 = open("./results/rewards.txt", 'w')
@@ -24,16 +23,12 @@ def train():
         ep_r = 0.
         ep_q = 0.
         for j in range(MAX_EP_STEPS):
-            # if random.random() < .1:
-            #     a = [random.uniform(-.5,.5), random.uniform(-.5,.5), random.uniform(-.5,.5), random.uniform(-.5,.5)]
-            # else:
-            a = rl.choose_action(s)
+            a = rl.select_action(s)
             s_, r, done = env.step(a, 'joint')
-            rl.store_transition(s, a, r, s_)
+            rl.store_transition(s, a, s_, r, done)
             ep_r += r
-            ep_q += rl.get_q_value(s, a)
-            if rl.memory_full:
-                rl.learn()
+            # ep_q += rl.get_q_value(s, a)
+            rl.train()
             s = s_
             if done or j == MAX_EP_STEPS-1:
                 if done:
@@ -48,11 +43,23 @@ def train():
                 break
         print('Goal:', env.goal, '\nFinal_pos:', env.robot.get_ee_pos())
         if i % 5000 == 0:
-            rl.save()
+            rl.save("checkpoint/" + algo)
     f1.close()
     f2.close()
-    rl.save()
+    rl.save("checkpoint/" + algo)
     env.close()
 
+
 if __name__ == "__main__":
-    train()
+    if len(sys.argv) == 2:
+        if (sys.argv[1] == "ddpg"):
+            rl = DDPG(31, 4, .5, int((MAX_EPISODES*MAX_EP_STEPS)/20))
+            train(rl, "ddpg")
+        elif (sys.argv[1] == "td3"):
+            rl = TD3(31, 4, .5, int((MAX_EPISODES*MAX_EP_STEPS)/20), policy_noise=0)
+            train(rl, "td3")
+        else:
+            print("Invalid Argument. Choices:\nddpg\ntd3\n")
+            exit()
+    else:
+        print("Name the algorithm on command line. Choices:\nddpg\ntd3\n")
