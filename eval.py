@@ -1,17 +1,14 @@
 from env import ClutteredPushGrasp, THRESHOLD
 from robot import UR5Robotiq85
-from rl2 import DDPG
+from rl import DDPG
 import pybullet as p
 import numpy as np
 import sys
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "1"
 
-MAX_EPISODES = 1000
-MAX_EP_STEPS = 100
-
-rl = DDPG(4, 31, [-0.5, 0.5], int((MAX_EPISODES*MAX_EP_STEPS)/10))
+rl = DDPG(4, 31, [-0.5, 0.5])
 
 def simulate(filename, vis=True):
     points = []
@@ -26,13 +23,20 @@ def simulate(filename, vis=True):
             point = f.readline()
         f.close()
     
-    env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)), vis)
+    env = ClutteredPushGrasp(UR5Robotiq85((0, 0, 0), (0, 0, 0)), vis=vis)
+    f1 = open(("./results/" + os.path.basename(filename) + "_pred_path.txt"), 'w')
     s = env.reset()
     rl.restore()
     error_ = 0
     episodes = 0
     completed = 0.
     p.addUserDebugPoints(points, colors, 5)
+
+    a = points[0].copy()
+    a.extend([0, 0, 0])
+    env.robot.move_ee(a, 'end')
+    for _ in range(100):
+        env.step_simulation()
 
     for point in points:
         steps = 0
@@ -43,12 +47,14 @@ def simulate(filename, vis=True):
 
         while not done and steps < 100:
             steps += 1
-            env.step_simulation()
             a = rl.choose_action(s)
             s, r, done = env.step(a)
+            for _ in range(10):
+                env.step_simulation()
             r_ += r
-
+        
         pos = env.robot.get_ee_pos()
+        f1.write("%f %f %f\n" % (pos[0], pos[1], pos[2]))
         dist = np.sqrt((env.goal[0]-pos[0])**2 + (env.goal[1]-pos[1])**2 + (env.goal[2]-pos[2])**2)
         if dist <= THRESHOLD:
             completed += 1.
@@ -60,6 +66,7 @@ def simulate(filename, vis=True):
 
     print("\n\nTotal Error:", error_)
     print("Tracking accuracy:", (completed/episodes))
+    f1.close()
     env.close()
     
 if __name__ == "__main__":

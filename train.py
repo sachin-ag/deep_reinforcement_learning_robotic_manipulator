@@ -1,12 +1,12 @@
 from env import ClutteredPushGrasp
 from robot import UR5Robotiq85
-from rl2 import DDPG
+from rl import DDPG
 import os
 import random
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
-os.environ["CUDA_VISIBLE_DEVICES"] = "0"
+os.environ["CUDA_VISIBLE_DEVICES"] = "3"
 
-MAX_EPISODES = 10000
+MAX_EPISODES = 20000
 MAX_EP_STEPS = 100
 
 
@@ -18,15 +18,13 @@ def train():
     f1 = open("./results/accuracy.txt", 'w')
     f2 = open("./results/rewards.txt", 'w')
     f3 = open("./results/q_values.txt", 'w')
+    f4 = open("./results/step_counts.txt", 'w')
     acc = 0
     for i in range(MAX_EPISODES):
         s = env.reset()
         ep_r = 0.
         ep_q = 0.
         for j in range(MAX_EP_STEPS):
-            # if random.random() < .1:
-            #     a = [random.uniform(-.5,.5), random.uniform(-.5,.5), random.uniform(-.5,.5), random.uniform(-.5,.5)]
-            # else:
             a = rl.choose_action(s)
             s_, r, done = env.step(a, 'joint')
             rl.store_transition(s, a, r, s_)
@@ -41,16 +39,19 @@ def train():
                 else:
                     acc = 0.99*acc
                 f1.write("%f\n" % acc)
-                f2.write("%f\n" % ep_r)
-                f3.write("%f\n" % ep_q)
+                f2.write("%f\n" % (ep_r/(j+1)))
+                f3.write("%f\n" % (ep_q/(j+1)))
+                f4.write("%f\n" % (j+1))
                 print('\n%i | %s | r: %.1f | acc:' %
-                      (i, '----' if not done else 'done', ep_r), round(acc, 2))
+                      (i, '----' if not done else 'done', (ep_r/(j+1))), round(acc, 2))
                 break
         print('Goal:', env.goal, '\nFinal_pos:', env.robot.get_ee_pos())
         if i % 5000 == 0:
             rl.save()
     f1.close()
     f2.close()
+    f3.close()
+    f4.close()
     rl.save()
     env.close()
 
