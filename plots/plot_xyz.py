@@ -45,7 +45,10 @@ create_subplot(axs[0, 2], "Actual vs Predicted Z-axis", "Episode", "Z", [actual_
 
 # Plot errors for each axis
 create_subplot(axs[1, 0], "Error in X-axis", "Episode", "Error", [error_x], ["Error"], ["blue"])
+axs[1, 0].set_ylim([0, 0.5])
 create_subplot(axs[1, 1], "Error in Y-axis", "Episode", "Error", [error_y], ["Error"], ["green"])
+axs[1, 1].set_ylim([0, 0.5])
 create_subplot(axs[1, 2], "Error in Z-axis", "Episode", "Error", [error_z], ["Error"], ["purple"])
+axs[1, 2].set_ylim([0, 0.5])
 
 plt.show()

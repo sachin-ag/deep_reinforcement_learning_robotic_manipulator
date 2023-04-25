@@ -3,7 +3,7 @@ import pybullet as p
 import pybullet_data
 
 THRESHOLD = 0.1
-ON_GOAL_THRESHOLD = 25
+ON_GOAL_THRESHOLD = 12
 STEP_SIMULATIONS = 30
 
 class ClutteredPushGrasp:
@@ -86,8 +86,6 @@ class ClutteredPushGrasp:
             
         for prev_angle, curr_angle in zip(self.prev_joint_angles[:-2], self.curr_joint_angles[:-2]):
             rc -= abs(curr_angle - prev_angle) / 4
-            # if abs(curr_angle - prev_angle) > .785: # pi/4
-                # rc -= 1
 
         r = (ra + rc + rd)
         return r, done

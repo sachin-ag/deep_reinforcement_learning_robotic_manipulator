@@ -3,6 +3,7 @@ from robot import UR5Robotiq85
 from rl import DDPG
 import pybullet as p
 import numpy as np
+import time
 import sys
 import os
 os.environ["CUDA_DEVICE_ORDER"] = "PCI_BUS_ID"
@@ -35,7 +36,7 @@ def simulate(filename, vis=True):
     a = points[0].copy()
     a.extend([0, 0, 0])
     env.robot.move_ee(a, 'end')
-    for _ in range(100):
+    for _ in range(500):
         env.step_simulation()
 
     for point in points:
@@ -49,9 +50,10 @@ def simulate(filename, vis=True):
             steps += 1
             a = rl.choose_action(s)
             s, r, done = env.step(a)
-            for _ in range(10):
+            for _ in range(50):
                 env.step_simulation()
             r_ += r
+            time.sleep(.01)
         
         pos = env.robot.get_ee_pos()
         f1.write("%f %f %f\n" % (pos[0], pos[1], pos[2]))
