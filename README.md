@@ -53,7 +53,7 @@ Plot rd part of reward function:
 python3 plots/plot_rd.py
 ```
 
-## Contributors:
+## Contributors
 
 [Sachin Agrawal](https://github.com/sachin-ag)  
 [Anay Aggarwal](https://github.com/anay0302)
