@@ -55,5 +55,5 @@ python3 plots/plot_rd.py
 
 ## Contributors:
 
-[Sachin Agrawal](https://github.com/sachin-ag)
+[Sachin Agrawal](https://github.com/sachin-ag)  
 [Anay Aggarwal](https://github.com/anay0302)
